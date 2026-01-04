@@ -364,6 +364,12 @@ class BanFloodingTheScreenPlugin(Star):
 
         gid = raw.get("group_id")
         config = self._get_group_config(gid)
+        
+        # 检查是否已经开启
+        if config.get("enabled", False):
+            yield event.plain_result("已经开启啦")
+            return
+        
         config["enabled"] = True
         self._save_config()
 
@@ -479,6 +485,12 @@ class BanFloodingTheScreenPlugin(Star):
 
         gid = raw.get("group_id")
         config = self._get_group_config(gid)
+        
+        # 检查是否已经关闭
+        if not config.get("enable_kick", False):
+            yield event.plain_result("已经关闭啦")
+            return
+        
         config["enable_kick"] = False
         self._save_config()
 
@@ -544,14 +556,14 @@ class BanFloodingTheScreenPlugin(Star):
             yield event.plain_result(error_msg)
             return
 
-        # 解析消息中的@用户
-        message_segments = event.message_obj.message
+        # 解析消息中的@用户 - 使用正则表达式从原始消息中提取
+        message_raw = event.message_obj.raw_message.get("message", "")
         target_uid = None
         
-        for segment in message_segments:
-            if segment.type == "at":
-                target_uid = str(segment.data.get("qq"))
-                break
+        # 匹配 [CQ:at,qq=数字] 格式
+        match = re.search(r'\[CQ:at,qq=(\d+)\]', message_raw)
+        if match:
+            target_uid = match.group(1)
         
         if not target_uid:
             yield event.plain_result("请@要重置次数的用户，例如：/重置刷屏次数 @用户")
