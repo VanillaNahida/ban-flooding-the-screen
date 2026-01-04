@@ -78,7 +78,8 @@ class BanFloodingTheScreenPlugin(Star):
             self.config["kick_delay"] = self.kick_delay
             self.config["group_configs"] = self.group_configs
             
-            logger.info("[刷屏禁言] 配置已更新到内存")
+            self.save_config()
+            logger.info("[刷屏禁言] 配置已保存到文件")
         except Exception as e:
             logger.error(f"[刷屏禁言] 更新配置失败: {e}")
 
