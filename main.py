@@ -222,8 +222,6 @@ class BanFloodingTheScreenPlugin(Star):
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def handle_group_message(self, event: AstrMessageEvent):
         """处理群消息，检测刷屏"""
-        if event.get_platform_name() != "aiocqhttp":
-            return
 
         raw = event.message_obj.raw_message
         
@@ -309,6 +307,9 @@ class BanFloodingTheScreenPlugin(Star):
             flood_state["delete"]()
             return
         
+        # 获取当前累计次数
+        current_offense_count = self.offense_counts.get(state_key, 0)
+        
         # 发送禁言消息
         if self.mute_message:
             try:
@@ -324,19 +325,19 @@ class BanFloodingTheScreenPlugin(Star):
                 enable_kick = config.get("enable_kick", self.enable_kick_repeat_offender)
                 kick_threshold = config.get("kick_threshold", self.kick_threshold)
                 if enable_kick:
-                    message += f"\n\n你已触犯 {offense_count} 次，如果次数达到 {kick_threshold} 次，你会被移出群。"
+                    message += f"\n\n你已触犯 {current_offense_count + 1} 次，如果次数达到 {kick_threshold} 次，你会被移出群。"
                 
                 await event.bot.api.call_action("send_group_msg", group_id=gid, message=message)
             except Exception as e:
                 logger.error(f"[刷屏禁言] 发送禁言消息失败: {e}")
         
         # 更新累计触发次数
-        offense_count = self.offense_counts.get(state_key, 0) + 1
-        self.offense_counts[state_key] = offense_count
+        new_offense_count = current_offense_count + 1
+        self.offense_counts[state_key] = new_offense_count
         
         # 持久化存储累计次数
         try:
-            await self.put_kv_data(state_key, offense_count)
+            await self.put_kv_data(state_key, new_offense_count)
         except Exception as e:
             logger.error(f"[刷屏禁言] 存储累计次数失败: {e}")
         
@@ -344,8 +345,8 @@ class BanFloodingTheScreenPlugin(Star):
         enable_kick = config.get("enable_kick", self.enable_kick_repeat_offender)
         kick_threshold = config.get("kick_threshold", self.kick_threshold)
         kick_delay = config.get("kick_delay", self.kick_delay)
-        if enable_kick and offense_count >= kick_threshold:
-            await self._kick_user(event, gid, uid, offense_count, kick_delay)
+        if enable_kick and new_offense_count >= kick_threshold:
+            await self._kick_user(event, gid, uid, new_offense_count, kick_delay)
         
         # 清除刷屏状态
         flood_state["delete"]()
