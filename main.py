@@ -43,26 +43,34 @@ class BanFloodingTheScreenPlugin(Star):
             self.enabled_groups = self.config.get("enabled_groups", schema_defaults.get("enabled_groups", []))
             self.detection_period = self.config.get("detection_period", schema_defaults.get("detection_period", 4))
             self.message_threshold = self.config.get("message_threshold", schema_defaults.get("message_threshold", 4))
-            self.mute_time = self.config.get("mute_time", schema_defaults.get("mute_time", 10))
             self.mute_message = self.config.get("mute_message", schema_defaults.get("mute_message", "检测到刷屏，已自动禁言，如有异议请联系管理员"))
-            self.enable_kick_repeat_offender = self.config.get("enable_kick_repeat_offender", schema_defaults.get("enable_kick_repeat_offender", True))
-            self.kick_threshold = self.config.get("kick_threshold", schema_defaults.get("kick_threshold", 5))
             self.kick_message = self.config.get("kick_message", schema_defaults.get("kick_message", "{at_user} 你已累计触发刷屏禁言 {count} 次，已被请出本群。"))
-            self.kick_delay = self.config.get("kick_delay", schema_defaults.get("kick_delay", 3))
             
-            # 群级别配置
-            self.group_configs = self.config.get("group_configs", {})
+            # 默认值（用于群配置的默认值）
+            self.mute_time = 10
+            self.enable_kick_repeat_offender = True
+            self.kick_threshold = 5
+            self.kick_delay = 3
+            
+            # 群级别配置 - 确保是列表格式
+            group_configs_raw = self.config.get("group_configs", [])
+            if not isinstance(group_configs_raw, list):
+                # 如果是旧的字典格式，转换为新的列表格式
+                group_configs_raw = []
+            self.group_configs = group_configs_raw
         except Exception:
             self.enabled_groups = schema_defaults.get("enabled_groups", [])
             self.detection_period = schema_defaults.get("detection_period", 4)
             self.message_threshold = schema_defaults.get("message_threshold", 4)
-            self.mute_time = schema_defaults.get("mute_time", 10)
             self.mute_message = schema_defaults.get("mute_message", "检测到刷屏，已自动禁言，如有异议请联系管理员")
-            self.enable_kick_repeat_offender = schema_defaults.get("enable_kick_repeat_offender", True)
-            self.kick_threshold = schema_defaults.get("kick_threshold", 5)
             self.kick_message = schema_defaults.get("kick_message", "{at_user} 你已累计触发刷屏禁言 {count} 次，已被请出本群。")
-            self.kick_delay = schema_defaults.get("kick_delay", 3)
-            self.group_configs = {}
+            
+            # 默认值（用于群配置的默认值）
+            self.mute_time = 10
+            self.enable_kick_repeat_offender = True
+            self.kick_threshold = 5
+            self.kick_delay = 3
+            self.group_configs = []
 
     def _save_config(self):
         """保存配置到磁盘"""
@@ -70,15 +78,18 @@ class BanFloodingTheScreenPlugin(Star):
             self.config["enabled_groups"] = self.enabled_groups
             self.config["detection_period"] = self.detection_period
             self.config["message_threshold"] = self.message_threshold
-            self.config["mute_time"] = self.mute_time
             self.config["mute_message"] = self.mute_message
-            self.config["enable_kick_repeat_offender"] = self.enable_kick_repeat_offender
-            self.config["kick_threshold"] = self.kick_threshold
             self.config["kick_message"] = self.kick_message
-            self.config["kick_delay"] = self.kick_delay
+            
+            # 确保 group_configs 是列表格式
+            if not isinstance(self.group_configs, list):
+                # 如果是旧的字典格式，转换为新的列表格式
+                self.group_configs = []
+                # 这里可以添加转换逻辑，如果需要的话
+            
             self.config["group_configs"] = self.group_configs
             
-            self.save_config()
+            self.config.save_config()
             logger.info("[刷屏禁言] 配置已保存到文件")
         except Exception as e:
             logger.error(f"[刷屏禁言] 更新配置失败: {e}")
@@ -154,15 +165,59 @@ class BanFloodingTheScreenPlugin(Star):
     def _get_group_config(self, gid: int) -> Dict[str, Any]:
         """获取群级别配置"""
         gid_str = str(gid)
-        if gid_str not in self.group_configs:
-            self.group_configs[gid_str] = {
-                "enabled": False,
+        
+        # 从 template_list 格式的 group_configs 中查找群配置
+        group_configs_list = self.group_configs if isinstance(self.group_configs, list) else []
+        
+        # 查找匹配的群配置
+        for config in group_configs_list:
+            if config.get("group_id") == gid_str:
+                # 添加 enabled 字段（从 enabled_groups 列表中检查）
+                config["enabled"] = gid_str in self.enabled_groups
+                return config
+        
+        # 如果没有找到，返回默认配置
+        return {
+            "group_id": gid_str,
+            "enabled": gid_str in self.enabled_groups,
+            "mute_time": self.mute_time,
+            "enable_kick": self.enable_kick_repeat_offender,
+            "kick_threshold": self.kick_threshold,
+            "kick_delay": self.kick_delay
+        }
+
+    def _update_group_config(self, gid: int, updates: Dict[str, Any]):
+        """更新群配置
+        
+        Args:
+            gid: 群号
+            updates: 要更新的配置项字典
+        """
+        gid_str = str(gid)
+        
+        # 确保 group_configs 是列表格式
+        if not isinstance(self.group_configs, list):
+            self.group_configs = []
+        
+        # 查找并更新现有的群配置
+        found = False
+        for config in self.group_configs:
+            if config.get("group_id") == gid_str:
+                config.update(updates)
+                found = True
+                break
+        
+        # 如果没有找到，创建新的群配置
+        if not found:
+            new_config = {
+                "group_id": gid_str,
                 "mute_time": self.mute_time,
                 "enable_kick": self.enable_kick_repeat_offender,
                 "kick_threshold": self.kick_threshold,
                 "kick_delay": self.kick_delay
             }
-        return self.group_configs[gid_str]
+            new_config.update(updates)
+            self.group_configs.append(new_config)
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def handle_group_message(self, event: AstrMessageEvent):
@@ -364,14 +419,17 @@ class BanFloodingTheScreenPlugin(Star):
             return
 
         gid = raw.get("group_id")
-        config = self._get_group_config(gid)
+        gid_str = str(gid)
         
         # 检查是否已经开启
-        if config.get("enabled", False):
+        if gid_str in self.enabled_groups:
             yield event.plain_result("已经开启啦")
             return
         
-        config["enabled"] = True
+        # 添加到启用列表
+        if gid_str not in self.enabled_groups:
+            self.enabled_groups.append(gid_str)
+        
         self._save_config()
 
         logger.info(f"[刷屏禁言] 群 {gid} 已开启刷屏禁言")
@@ -394,8 +452,12 @@ class BanFloodingTheScreenPlugin(Star):
             return
 
         gid = raw.get("group_id")
-        config = self._get_group_config(gid)
-        config["enabled"] = False
+        gid_str = str(gid)
+        
+        # 从启用列表中移除
+        if gid_str in self.enabled_groups:
+            self.enabled_groups.remove(gid_str)
+        
         self._save_config()
 
         logger.info(f"[刷屏禁言] 群 {gid} 已关闭刷屏禁言")
@@ -437,8 +499,7 @@ class BanFloodingTheScreenPlugin(Star):
             return
 
         gid = raw.get("group_id")
-        config = self._get_group_config(gid)
-        config["mute_time"] = mute_time
+        self._update_group_config(gid, {"mute_time": mute_time})
         self._save_config()
 
         logger.info(f"[刷屏禁言] 群 {gid} 禁言时间已设置为 {mute_time} 分钟")
@@ -461,8 +522,7 @@ class BanFloodingTheScreenPlugin(Star):
             return
 
         gid = raw.get("group_id")
-        config = self._get_group_config(gid)
-        config["enable_kick"] = True
+        self._update_group_config(gid, {"enable_kick": True})
         self._save_config()
 
         logger.info(f"[刷屏禁言] 群 {gid} 已开启刷屏踢人")
@@ -492,7 +552,7 @@ class BanFloodingTheScreenPlugin(Star):
             yield event.plain_result("已经关闭啦")
             return
         
-        config["enable_kick"] = False
+        self._update_group_config(gid, {"enable_kick": False})
         self._save_config()
 
         logger.info(f"[刷屏禁言] 群 {gid} 已关闭刷屏踢人")
@@ -534,8 +594,7 @@ class BanFloodingTheScreenPlugin(Star):
             return
 
         gid = raw.get("group_id")
-        config = self._get_group_config(gid)
-        config["kick_threshold"] = count
+        self._update_group_config(gid, {"kick_threshold": count})
         self._save_config()
 
         logger.info(f"[刷屏禁言] 群 {gid} 踢人次数已设置为 {count} 次")

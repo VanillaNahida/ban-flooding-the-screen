@@ -17,29 +17,11 @@
     "default": 4,
     "hint": "在检测周期内发送的消息数量达到此数值即触发禁言。默认 4 条。"
   },
-  "mute_time": {
-    "description": "禁言时长（分钟）",
-    "type": "int",
-    "default": 10,
-    "hint": "触发刷屏时的禁言时长。默认 10 分钟。"
-  },
   "mute_message": {
     "description": "禁言提示语",
     "type": "string",
     "default": "检测到刷屏，已自动禁言，如有异议请联系管理员",
     "hint": "触发禁言后发送的消息。留空则不发送消息。可用变量: {at_user}, {nickname}, {mute_time}。"
-  },
-  "enable_kick_repeat_offender": {
-    "description": "启用屡犯踢群",
-    "type": "bool",
-    "default": true,
-    "hint": "是否启用屡犯踢群功能。启用后，当用户多次刷屏累计达到阈值次数时将会被踢出群。默认启用。"
-  },
-  "kick_threshold": {
-    "description": "踢群阈值",
-    "type": "int",
-    "default": 5,
-    "hint": "用户累计触发禁言多少次后将被踢出群。默认 5 次。"
   },
   "kick_message": {
     "description": "踢群提示语",
@@ -47,10 +29,116 @@
     "default": "{at_user} 你已累计触发刷屏禁言 {count} 次，已被请出本群。",
     "hint": "用户被踢出群时发送的消息。可用变量: {at_user}, {count} (累计次数)。"
   },
-  "kick_delay": {
-    "description": "踢群延迟时间（秒）",
-    "type": "int",
-    "default": 3,
-    "hint": "踢人前的延迟时间（秒），默认 3 秒。"
+  "group_configs": {
+    "description": "群级别配置",
+    "type": "template_list",
+    "hint": "为不同的群配置不同的刷屏检测参数。可以在 WebUI 上快速添加和编辑群配置。",
+    "templates": {
+      "default_config": {
+        "name": "默认配置",
+        "hint": "适用于大多数群的标准配置",
+        "items": {
+          "group_id": {
+            "description": "群号",
+            "type": "string",
+            "hint": "要配置的群号（纯数字）"
+          },
+          "mute_time": {
+            "description": "禁言时长（分钟）",
+            "type": "int",
+            "default": 10,
+            "hint": "触发刷屏时的禁言时长。默认 10 分钟。"
+          },
+          "enable_kick": {
+            "description": "启用屡犯踢群",
+            "type": "bool",
+            "default": true,
+            "hint": "是否启用屡犯踢群功能。启用后，当用户多次刷屏累计达到阈值次数时将会被踢出群。"
+          },
+          "kick_threshold": {
+            "description": "踢群阈值",
+            "type": "int",
+            "default": 5,
+            "hint": "用户累计触发禁言多少次后将被踢出群。默认 5 次。"
+          },
+          "kick_delay": {
+            "description": "踢群延迟时间（秒）",
+            "type": "int",
+            "default": 3,
+            "hint": "踢人前的延迟时间（秒），默认 3 秒。"
+          }
+        }
+      },
+      "strict_config": {
+        "name": "严格配置",
+        "hint": "适用于管理严格的群，禁言时间更长，踢人阈值更低",
+        "items": {
+          "group_id": {
+            "description": "群号",
+            "type": "string",
+            "hint": "要配置的群号（纯数字）"
+          },
+          "mute_time": {
+            "description": "禁言时长（分钟）",
+            "type": "int",
+            "default": 30,
+            "hint": "触发刷屏时的禁言时长。默认 30 分钟。"
+          },
+          "enable_kick": {
+            "description": "启用屡犯踢群",
+            "type": "bool",
+            "default": true,
+            "hint": "是否启用屡犯踢群功能。启用后，当用户多次刷屏累计达到阈值次数时将会被踢出群。"
+          },
+          "kick_threshold": {
+            "description": "踢群阈值",
+            "type": "int",
+            "default": 3,
+            "hint": "用户累计触发禁言多少次后将被踢出群。默认 3 次。"
+          },
+          "kick_delay": {
+            "description": "踢群延迟时间（秒）",
+            "type": "int",
+            "default": 5,
+            "hint": "踢人前的延迟时间（秒），默认 5 秒。"
+          }
+        }
+      },
+      "lenient_config": {
+        "name": "宽松配置",
+        "hint": "适用于管理宽松的群，禁言时间更短，不启用踢人",
+        "items": {
+          "group_id": {
+            "description": "群号",
+            "type": "string",
+            "hint": "要配置的群号（纯数字）"
+          },
+          "mute_time": {
+            "description": "禁言时长（分钟）",
+            "type": "int",
+            "default": 5,
+            "hint": "触发刷屏时的禁言时长。默认 5 分钟。"
+          },
+          "enable_kick": {
+            "description": "启用屡犯踢群",
+            "type": "bool",
+            "default": false,
+            "hint": "是否启用屡犯踢群功能。启用后，当用户多次刷屏累计达到阈值次数时将会被踢出群。"
+          },
+          "kick_threshold": {
+            "description": "踢群阈值",
+            "type": "int",
+            "default": 10,
+            "hint": "用户累计触发禁言多少次后将被踢出群。默认 10 次。"
+          },
+          "kick_delay": {
+            "description": "踢群延迟时间（秒）",
+            "type": "int",
+            "default": 3,
+            "hint": "踢人前的延迟时间（秒），默认 3 秒。"
+          }
+        }
+      }
+    }
   }
 }
