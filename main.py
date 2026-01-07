@@ -245,8 +245,9 @@ class BanFloodingTheScreenPlugin(Star):
         # 添加消息到列表
         flood_state["messages"].append(event.message_str)
         
-        # 检查是否达到阈值
-        if len(flood_state["messages"]) >= self.message_threshold:
+        # 检查是否达到阈值且未在处理刷屏禁言
+        if len(flood_state["messages"]) >= self.message_threshold and not flood_state["is_handling_flood"]:
+            flood_state["is_handling_flood"] = True
             await self._handle_flooding(event, gid, uid, state_key, config)
         else:
             # 如果没有达到阈值，设置定时器
@@ -348,8 +349,12 @@ class BanFloodingTheScreenPlugin(Star):
         if enable_kick and new_offense_count >= kick_threshold:
             await self._kick_user(event, gid, uid, new_offense_count, kick_delay)
         
-        # 清除刷屏状态
-        flood_state["delete"]()
+        # 重置刷屏状态，保留累计次数但清空消息列表和重置处理标志
+        flood_state["messages"] = []
+        flood_state["is_handling_flood"] = False
+        if flood_state.get("timer") and not flood_state["timer"].cancelled():
+            flood_state["timer"].cancel()
+            flood_state["timer"] = None
 
     async def _kick_user(self, event: AstrMessageEvent, gid: int, uid: str, count: int, kick_delay: int = None):
         """踢出屡犯用户"""
@@ -391,14 +396,17 @@ class BanFloodingTheScreenPlugin(Star):
         await asyncio.sleep(self.detection_period)
         flood_state = self.flood_states.get(state_key)
         if flood_state:
+            # 重置刷屏处理标志
+            flood_state["is_handling_flood"] = False
             flood_state["delete"]()
 
     def _get_flood_state(self, state_key: str) -> Dict[str, Any]:
         """获取或创建用户的刷屏状态"""
         if state_key not in self.flood_states:
             self.flood_states[state_key] = {
-                "timer": None,
                 "messages": [],
+                "timer": None,
+                "is_handling_flood": False,  # 标记是否正在处理刷屏禁言
                 "delete": lambda: self.flood_states.pop(state_key, None)
             }
         return self.flood_states[state_key]
@@ -617,14 +625,22 @@ class BanFloodingTheScreenPlugin(Star):
             yield event.plain_result(error_msg)
             return
 
-        # 解析消息中的@用户 - 使用正则表达式从原始消息中提取
-        message_raw = event.message_obj.raw_message.get("message", "")
+        # 解析消息中的@用户 - 使用更可靠的方法
+        message = raw.get("message", [])
         target_uid = None
         
-        # 匹配 [CQ:at,qq=数字] 格式
-        match = re.search(r'\[CQ:at,qq=(\d+)\]', message_raw)
-        if match:
-            target_uid = match.group(1)
+        # 方法1: 从消息段中查找at类型的消息段
+        for seg in message:
+            if seg.get("type") == "at":
+                target_uid = str(seg.get("data", {}).get("qq"))
+                break
+        
+        # 方法2: 如果方法1失败，尝试从原始消息字符串中提取
+        if not target_uid:
+            message_raw = str(event.message_obj.raw_message.get("message", ""))
+            match = re.search(r'\[CQ:at,qq=(\d+)\]', message_raw)
+            if match:
+                target_uid = match.group(1)
         
         if not target_uid:
             yield event.plain_result("请@要重置次数的用户，例如：/重置刷屏次数 @用户")
