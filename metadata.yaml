@@ -2,5 +2,5 @@ name: astrbot_plugin_ban_flooding_the_screen # 插件唯一识别名，以 astrb
 display_name: 刷屏自动禁言 # 用于展示的名字，可以是方便人类阅读的名字（需要版本 >= v4.5.0，低版本不会报错，请放心填写）
 desc: AstrBot刷屏禁言插件，检测到刷屏会直接禁言，多次刷屏达到一定值就会踢出群，可自定义参数。 # 插件简短描述
 version: v1.0.0 # 插件版本号。格式：v1.1.1 或者 v1.1
-author: 香草味的纳西妲喵 (VanillaNahida) # 作者
+author: VanillaNahida (香草味的纳西妲喵) # 作者
 repo: https://github.com/VanillaNahida/ban-flooding-the-screen # 插件的仓库地址
