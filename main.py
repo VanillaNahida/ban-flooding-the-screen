@@ -220,6 +220,7 @@ class BanFloodingTheScreenPlugin(Star):
             self.group_configs.append(new_config)
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def handle_group_message(self, event: AstrMessageEvent):
         """处理群消息，检测刷屏"""
 
