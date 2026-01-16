@@ -29,6 +29,24 @@
     "default": "{at_user} 你已累计触发刷屏禁言 {count} 次，已被请出本群。",
     "hint": "用户被踢出群时发送的消息。可用变量: {at_user}, {count} (累计次数)。"
   },
+  "enable_long_message_ban": {
+    "description": "是否开启超长消息禁言",
+    "type": "bool",
+    "default": false,
+    "hint": "是否启用超长消息检测功能。启用后，当单条消息字数超过阈值时会触发禁言。"
+  },
+  "long_message_threshold": {
+    "description": "超长消息判断阈值",
+    "type": "int",
+    "default": 500,
+    "hint": "单条消息字数超过此数值即触发禁言。默认 500 字。"
+  },
+  "long_message_mute_message": {
+    "description": "超长消息禁言提示语",
+    "type": "string",
+    "default": "{at_user} 你的消息字数超过{threshold}字，构成刷屏，已自动禁言，发送长文本建议合并转发形式发送，如有异议或者误判请联系管理员。",
+    "hint": "触发超长消息禁言后发送的消息。可用变量: {at_user}, {threshold} (字数阈值), {mute_time} (禁言时长)。"
+  },
   "group_configs": {
     "description": "群级别配置",
     "type": "template_list",
@@ -66,6 +84,18 @@
             "type": "int",
             "default": 3,
             "hint": "踢人前的延迟时间（秒），默认 3 秒。"
+          },
+          "enable_long_message_ban": {
+            "description": "是否开启超长消息禁言",
+            "type": "bool",
+            "default": false,
+            "hint": "是否启用超长消息检测功能。启用后，当单条消息字数超过阈值时会触发禁言。"
+          },
+          "long_message_threshold": {
+            "description": "超长消息判断阈值",
+            "type": "int",
+            "default": 500,
+            "hint": "单条消息字数超过此数值即触发禁言。默认 500 字。"
           }
         }
       },
@@ -101,6 +131,18 @@
             "type": "int",
             "default": 5,
             "hint": "踢人前的延迟时间（秒），默认 5 秒。"
+          },
+          "enable_long_message_ban": {
+            "description": "是否开启超长消息禁言",
+            "type": "bool",
+            "default": true,
+            "hint": "是否启用超长消息检测功能。启用后，当单条消息字数超过阈值时会触发禁言。"
+          },
+          "long_message_threshold": {
+            "description": "超长消息判断阈值",
+            "type": "int",
+            "default": 300,
+            "hint": "单条消息字数超过此数值即触发禁言。默认 300 字。"
           }
         }
       },
@@ -136,6 +178,18 @@
             "type": "int",
             "default": 3,
             "hint": "踢人前的延迟时间（秒），默认 3 秒。"
+          },
+          "enable_long_message_ban": {
+            "description": "是否开启超长消息禁言",
+            "type": "bool",
+            "default": false,
+            "hint": "是否启用超长消息检测功能。启用后，当单条消息字数超过阈值时会触发禁言。"
+          },
+          "long_message_threshold": {
+            "description": "超长消息判断阈值",
+            "type": "int",
+            "default": 500,
+            "hint": "单条消息字数超过此数值即触发禁言。默认 500 字。"
           }
         }
       }

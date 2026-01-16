@@ -46,6 +46,11 @@ class BanFloodingTheScreenPlugin(Star):
             self.mute_message = self.config.get("mute_message", schema_defaults.get("mute_message", "检测到刷屏，已自动禁言，如有异议请联系管理员"))
             self.kick_message = self.config.get("kick_message", schema_defaults.get("kick_message", "{at_user} 你已累计触发刷屏禁言 {count} 次，已被请出本群。"))
             
+            # 超长消息配置
+            self.enable_long_message_ban = self.config.get("enable_long_message_ban", schema_defaults.get("enable_long_message_ban", False))
+            self.long_message_threshold = self.config.get("long_message_threshold", schema_defaults.get("long_message_threshold", 500))
+            self.long_message_mute_message = self.config.get("long_message_mute_message", schema_defaults.get("long_message_mute_message", "{at_user} 你的消息字数超过{threshold}字，构成刷屏，已自动禁言，发送长文本建议合并转发形式发送，如有异议或者误判请联系管理员。"))
+            
             # 默认值（用于群配置的默认值）
             self.mute_time = 10
             self.enable_kick_repeat_offender = True
@@ -65,6 +70,11 @@ class BanFloodingTheScreenPlugin(Star):
             self.mute_message = schema_defaults.get("mute_message", "检测到刷屏，已自动禁言，如有异议请联系管理员")
             self.kick_message = schema_defaults.get("kick_message", "{at_user} 你已累计触发刷屏禁言 {count} 次，已被请出本群。")
             
+            # 超长消息配置
+            self.enable_long_message_ban = schema_defaults.get("enable_long_message_ban", False)
+            self.long_message_threshold = schema_defaults.get("long_message_threshold", 500)
+            self.long_message_mute_message = schema_defaults.get("long_message_mute_message", "{at_user} 你的消息字数超过{threshold}字，构成刷屏，已自动禁言，发送长文本建议合并转发形式发送，如有异议或者误判请联系管理员。")
+            
             # 默认值（用于群配置的默认值）
             self.mute_time = 10
             self.enable_kick_repeat_offender = True
@@ -80,6 +90,11 @@ class BanFloodingTheScreenPlugin(Star):
             self.config["message_threshold"] = self.message_threshold
             self.config["mute_message"] = self.mute_message
             self.config["kick_message"] = self.kick_message
+            
+            # 超长消息配置
+            self.config["enable_long_message_ban"] = self.enable_long_message_ban
+            self.config["long_message_threshold"] = self.long_message_threshold
+            self.config["long_message_mute_message"] = self.long_message_mute_message
             
             # 确保 group_configs 是列表格式
             if not isinstance(self.group_configs, list):
@@ -151,13 +166,8 @@ class BanFloodingTheScreenPlugin(Star):
             return (False, "bot权限不足，需要管理员权限")
         
         # 检查用户权限
-        try:
-            user_info = await event.bot.api.call_action("get_group_member_info", group_id=gid, user_id=int(uid))
-            user_role = user_info.get("role")
-            if user_role not in ["admin", "owner"]:
-                return (False, "该命令仅限管理员使用")
-        except Exception as e:
-            logger.error(f"[刷屏禁言] 检查用户权限失败: {e}")
+        sender_role = raw.get("sender", {}).get("role", "member") if raw.get("sender") else "member"
+        if sender_role not in ["admin", "owner"]:
             return (False, "该命令仅限管理员使用")
         
         return (True, "")
@@ -183,7 +193,9 @@ class BanFloodingTheScreenPlugin(Star):
             "mute_time": self.mute_time,
             "enable_kick": self.enable_kick_repeat_offender,
             "kick_threshold": self.kick_threshold,
-            "kick_delay": self.kick_delay
+            "kick_delay": self.kick_delay,
+            "enable_long_message_ban": self.enable_long_message_ban,
+            "long_message_threshold": self.long_message_threshold
         }
 
     def _update_group_config(self, gid: int, updates: Dict[str, Any]):
@@ -222,7 +234,7 @@ class BanFloodingTheScreenPlugin(Star):
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def handle_group_message(self, event: AstrMessageEvent):
-        """处理群消息，检测刷屏"""
+        """处理群消息，检测刷屏和超长消息"""
 
         raw = event.message_obj.raw_message
         
@@ -239,6 +251,11 @@ class BanFloodingTheScreenPlugin(Star):
         if not config.get("enabled", False):
             return
         
+        # 先检测超长消息
+        if config.get("enable_long_message_ban", False):
+            await self._handle_long_message(event, gid, uid, config)
+        
+        # 然后检测刷屏
         # 获取用户的刷屏状态
         state_key = f"{gid}:{uid}"
         flood_state = self._get_flood_state(state_key)
@@ -254,6 +271,75 @@ class BanFloodingTheScreenPlugin(Star):
             # 如果没有达到阈值，设置定时器
             if not flood_state["timer"] or flood_state["timer"].cancelled():
                 flood_state["timer"] = asyncio.create_task(self._reset_flood_state(state_key))
+
+    async def _handle_long_message(self, event: AstrMessageEvent, gid: int, uid: str, config: Dict[str, Any]):
+        """处理超长消息事件"""
+        # 获取消息长度
+        message_length = len(event.message_str.strip())
+        
+        # 获取超长消息阈值
+        threshold = config.get("long_message_threshold", self.long_message_threshold)
+        
+        # 检查消息长度是否超过阈值
+        if message_length <= threshold:
+            return
+        
+        # 检查机器人是否有权限
+        try:
+            group_info = await event.bot.api.call_action("get_group_member_info", group_id=gid, user_id=int(event.get_self_id()))
+            bot_role = group_info.get("role")
+            if bot_role not in ["admin", "owner"]:
+                logger.warning(f"[刷屏禁言] 机器人在群 {gid} 没有管理员权限，无法禁言")
+                return
+        except Exception as e:
+            logger.error(f"[刷屏禁言] 检查机器人权限失败: {e}")
+            return
+        
+        # 检查用户角色
+        try:
+            member_info = await event.bot.api.call_action("get_group_member_info", group_id=gid, user_id=int(uid))
+            user_role = member_info.get("role")
+            if user_role == "owner":
+                logger.info(f"[刷屏禁言] 用户 {uid} 是群主，跳过超长消息禁言")
+                return
+            if user_role == "admin" and bot_role != "owner":
+                logger.info(f"[刷屏禁言] 用户 {uid} 是管理员，机器人不是群主，跳过超长消息禁言")
+                return
+        except Exception as e:
+            logger.error(f"[刷屏禁言] 检查用户角色失败: {e}")
+            return
+        
+        # 获取禁言时间
+        mute_time = config.get("mute_time", self.mute_time)
+        
+        # 执行禁言
+        try:
+            await event.bot.api.call_action(
+                "set_group_ban",
+                group_id=gid,
+                user_id=int(uid),
+                duration=mute_time * 60
+            )
+            logger.info(f"[刷屏禁言] 已禁言用户 {uid}（超长消息），时长 {mute_time} 分钟")
+        except Exception as e:
+            logger.error(f"[刷屏禁言] 禁言失败（超长消息）: {e}")
+            return
+        
+        # 发送禁言消息
+        if self.long_message_mute_message:
+            try:
+                at_user = f"[CQ:at,qq={uid}]"
+                nickname = member_info.get("card") or member_info.get("nickname") or uid
+                message = self.long_message_mute_message.format(
+                    at_user=at_user,
+                    nickname=nickname,
+                    threshold=threshold,
+                    mute_time=mute_time
+                )
+                
+                await event.bot.api.call_action("send_group_msg", group_id=gid, message=message)
+            except Exception as e:
+                logger.error(f"[刷屏禁言] 发送超长消息禁言消息失败: {e}")
 
     async def _handle_flooding(self, event: AstrMessageEvent, gid: int, uid: str, state_key: str, config: Dict[str, Any]):
         """处理刷屏事件"""
